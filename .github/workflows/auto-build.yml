@@ -1,0 +1,94 @@
+name: Auto Build
+
+on:
+  push:
+    branches: [auto-build]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Cache build deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-deps-${{ runner.os }}-${{ hashFiles('gradle/**', 'gradlew*', 'gradle.properties', '*.gradle*') }}
+          restore-keys: |
+            android-deps-${{ runner.os }}-
+
+      - name: Write local.properties (gradle)
+        run: echo '${{ secrets.GRADLE_LOCAL_PROPERTIES }}' > local.properties
+
+      - name: Write google-services.json
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > composeApp/src/google-services.json
+
+      - name: Decode debug signing key
+        run: |
+          echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > ${{ github.workspace }}/debug.keystore
+          keytool -list -keystore ${{ github.workspace }}/debug.keystore -storepass android -alias androiddebugkey > /dev/null
+
+      - name: Build debug APK
+        run: |
+          ./gradlew :composeApp:assembleDebug \
+            -Pandroid.injected.signing.store.file=${{ github.workspace }}/debug.keystore \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=androiddebugkey \
+            -Pandroid.injected.signing.key.password=android
+        env:
+          GITHUB_ACTOR: ${{ secrets.READ_PACKAGES_ACTOR }}
+          GITHUB_TOKEN: ${{ secrets.READ_PACKAGES_TOKEN }}
+
+      - name: Get version info
+        id: version
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Find APK
+        id: apk
+        run: |
+          APK=$(find composeApp/build/outputs/apk/debug -name '*.apk' | head -1)
+          echo "path=${APK}" >> "$GITHUB_OUTPUT"
+          echo "Found APK: ${APK}"
+
+      - name: Create pre-release (push)
+        if: startsWith(github.ref, 'refs/tags/') != true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: auto-build-${{ steps.version.outputs.sha }}
+          name: Auto Build ${{ steps.version.outputs.sha }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: ${{ steps.apk.outputs.path }}
+          body: |
+            Automated debug build from `auto-build` branch.
+            Commit: ${{ github.sha }}
+          make_latest: true
+
+      - name: Create release (tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          prerelease: false
+          target_commitish: ${{ github.sha }}
+          files: ${{ steps.apk.outputs.path }}
+          body: |
+            Release build from tag `${{ github.ref_name }}`.
+            Commit: ${{ github.sha }}
