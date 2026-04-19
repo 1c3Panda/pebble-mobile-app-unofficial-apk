@@ -2,7 +2,7 @@ name: Auto Build
 
 on:
   push:
-    branches: [auto-build]
+    branches: [auto-build-base]
     tags: ['v*']
   workflow_dispatch:
 
