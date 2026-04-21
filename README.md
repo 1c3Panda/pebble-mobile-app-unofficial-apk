@@ -1,5 +1,5 @@
-# This is a work-in-progress
-### I don't actually know how to auto-build and publish an apk, so I'm figuring it out
+# This fork is a work-in-progress and unaffiliated with coredevices
+### The goal is to automatically build and publish an apk based on updates to the original code, so that they could be automatically fetched using Obtanium for those of us who don't use the play store. However, I don't actually know how to do that, so I'm figuring it out.
 
 
 # libpebble3
