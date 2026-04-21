@@ -1,3 +1,7 @@
+# This is a work-in-progress
+### I don't actually know how to auto-build and publish an apk, so I'm figuring it out
+
+
 # libpebble3
 
 libpebble3 is a kotlin multiplatform library for interacting with Pebble devices. It is designed to do everything that a Pebble/Core watch companion app needs to do, except for the UI and specific web services.
